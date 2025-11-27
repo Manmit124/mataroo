@@ -35,7 +35,7 @@ export function useConnections() {
     queryFn: async (): Promise<Connection[]> => {
       // Get session token
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         throw new Error("Not authenticated");
       }
@@ -61,7 +61,7 @@ export function useConnections() {
     mutationFn: async () => {
       // Get session token
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         throw new Error("Not authenticated");
       }
@@ -77,12 +77,12 @@ export function useConnections() {
       }
 
       const data = await response.json();
-      
+
       // Redirect to Twitter OAuth
       if (data.auth_url) {
         window.location.href = data.auth_url;
       }
-      
+
       return data;
     },
     onError: (error) => {
@@ -95,7 +95,7 @@ export function useConnections() {
     mutationFn: async () => {
       // Get session token
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         throw new Error("Not authenticated");
       }
@@ -111,16 +111,50 @@ export function useConnections() {
       }
 
       const data = await response.json();
-      
+
       // Redirect to GitHub OAuth
       if (data.auth_url) {
         window.location.href = data.auth_url;
       }
-      
+
       return data;
     },
     onError: (error) => {
       console.error("Error connecting GitHub:", error);
+    },
+  });
+
+  // Connect LinkedIn account
+  const connectLinkedIn = useMutation({
+    mutationFn: async () => {
+      // Get session token
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
+
+      const response = await fetch(`${API_URL}/api/auth/linkedin/login`, {
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to initiate LinkedIn OAuth");
+      }
+
+      const data = await response.json();
+
+      // Redirect to LinkedIn OAuth
+      if (data.auth_url) {
+        window.location.href = data.auth_url;
+      }
+
+      return data;
+    },
+    onError: (error) => {
+      console.error("Error connecting LinkedIn:", error);
     },
   });
 
@@ -129,7 +163,7 @@ export function useConnections() {
     mutationFn: async (platform: string) => {
       // Get session token
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         throw new Error("Not authenticated");
       }
@@ -170,7 +204,7 @@ export function useConnections() {
     onSettled: (data, error, platform) => {
       // Refetch after mutation
       queryClient.invalidateQueries({ queryKey: ["connections"] });
-      
+
       // If GitHub was disconnected, invalidate all GitHub-related queries
       if (platform === "github") {
         queryClient.invalidateQueries({ queryKey: ["github"] });
@@ -195,6 +229,7 @@ export function useConnections() {
     refetch,
     connectTwitter,
     connectGitHub,
+    connectLinkedIn,
     disconnectAccount,
     isConnected,
     getConnection,

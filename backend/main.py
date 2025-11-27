@@ -24,6 +24,7 @@ from agent.graph import run_agent
 from storage.tweet_storage import TweetStorage
 from services.social.twitter_service import TwitterOAuthService
 from services.social.github_service import GitHubOAuthService
+from services.social.linkedin_service import LinkedInOAuthService
 from services.supabase_service import supabase_service
 from services.github_data_service import GitHubDataService
 from services.twitter_data_service import twitter_data_service
@@ -63,6 +64,7 @@ app.add_middleware(
 tweet_storage = TweetStorage()
 twitter_oauth = TwitterOAuthService()
 github_oauth = GitHubOAuthService()
+linkedin_oauth = LinkedInOAuthService()
 github_data_service = GitHubDataService()
 context_service = ContextService()
 
@@ -253,8 +255,45 @@ async def post_content(
                 access_token
             )
         elif request.platform == "linkedin":
-            # LinkedIn posting will be implemented in Phase 2
-            raise HTTPException(status_code=501, detail="LinkedIn posting not yet implemented")
+            # LinkedIn posting
+            linkedin_oauth = LinkedInOAuthService()
+            
+            # Check if token is expired and refresh if needed
+            access_token = account["access_token"]
+            if account.get("expires_at"):
+                from datetime import datetime, timezone
+                
+                # Parse the expires_at timestamp
+                expires_at_str = account["expires_at"]
+                if isinstance(expires_at_str, str):
+                    # Handle ISO format with or without timezone
+                    if expires_at_str.endswith('Z'):
+                        expires_at_str = expires_at_str.replace('Z', '+00:00')
+                    expires_at = datetime.fromisoformat(expires_at_str)
+                    # Ensure it's timezone-aware
+                    if expires_at.tzinfo is None:
+                        expires_at = expires_at.replace(tzinfo=timezone.utc)
+                else:
+                    expires_at = expires_at_str
+                
+                if linkedin_oauth.is_token_expired(expires_at):
+                    print(f"🔄 Token expired, refreshing for user {user_id}...")
+                    # LinkedIn tokens are long-lived (60 days) and usually require re-auth
+                    # But if we had a refresh flow, it would go here.
+                    # For now, we'll ask user to reconnect if expired
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Your LinkedIn session has expired. Please reconnect your account."
+                    )
+            
+            # We need the user's URN (ID) to post
+            user_urn = account["platform_user_id"]
+            
+            result = await linkedin_oauth.post_content(
+                request.content,
+                access_token,
+                user_urn
+            )
         elif request.platform == "reddit":
             # Reddit posting will be implemented in Phase 3
             raise HTTPException(status_code=501, detail="Reddit posting not yet implemented")
@@ -742,6 +781,115 @@ async def regenerate_style_profile(
     except Exception as e:
         print(f"❌ Error regenerating style profile: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/auth/linkedin/login")
+async def linkedin_login(authorization: Optional[str] = Header(None)):
+    """
+    Initiate LinkedIn OAuth flow.
+    Requires user to be authenticated (JWT token in Authorization header).
+    """
+    try:
+        # Verify user is authenticated
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        
+        token = authorization.split(" ")[1]
+        user_data = supabase_service.verify_jwt_token(token)
+        user_id = user_data.get("sub")
+        
+        # Generate state for CSRF protection
+        state = secrets.token_urlsafe(32)
+        
+        # Get authorization URL
+        auth_url, state = linkedin_oauth.get_authorization_url(state)
+        
+        # Store state temporarily
+        oauth_states[state] = {
+            "user_id": user_id
+        }
+        
+        # Return auth URL for frontend to redirect
+        return {
+            "success": True,
+            "auth_url": auth_url
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error initiating LinkedIn OAuth: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/auth/linkedin/callback")
+async def linkedin_callback(
+    code: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
+    error: Optional[str] = Query(None),
+    error_description: Optional[str] = Query(None)
+):
+    """
+    Handle LinkedIn OAuth callback.
+    Exchange code for tokens and save to database.
+    """
+    try:
+        # Handle OAuth errors
+        if error:
+            print(f"❌ LinkedIn OAuth error: {error} - {error_description}")
+            frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+            return RedirectResponse(url=f"{frontend_url}/settings?error={error_description or error}")
+            
+        if not code or not state:
+            raise HTTPException(status_code=400, detail="Missing code or state parameter")
+
+        # Verify state
+        if state not in oauth_states:
+            raise HTTPException(status_code=400, detail="Invalid state parameter")
+        
+        oauth_data = oauth_states[state]
+        user_id = oauth_data["user_id"]
+        
+        # Exchange code for tokens
+        token_response = await linkedin_oauth.exchange_code_for_token(code)
+        
+        # Get user info from LinkedIn
+        user_info = await linkedin_oauth.get_user_info(token_response["access_token"])
+        
+        # Calculate token expiry
+        expires_at = linkedin_oauth.calculate_token_expiry(token_response["expires_in"])
+        
+        # Save to database
+        account_data = {
+            "user_id": user_id,
+            "platform": "linkedin",
+            "platform_user_id": user_info["sub"], # LinkedIn uses 'sub' as user ID
+            "platform_username": user_info.get("name", "LinkedIn User"),
+            "access_token": token_response["access_token"],
+            "refresh_token": token_response.get("refresh_token"), # LinkedIn might not return this for all flows
+            "expires_at": expires_at.isoformat(),
+            "scope": token_response.get("scope", "").split(),
+            "is_active": True
+        }
+        
+        success = supabase_service.save_connected_account(account_data)
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to save connection")
+        
+        # Clean up state
+        del oauth_states[state]
+        
+        # Redirect to frontend success page
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        return RedirectResponse(url=f"{frontend_url}/settings?connected=linkedin")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error in LinkedIn callback: {str(e)}")
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        return RedirectResponse(url=f"{frontend_url}/settings?error={str(e)}")
 
 
 @app.get("/api/auth/github/login")

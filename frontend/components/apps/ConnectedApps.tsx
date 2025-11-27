@@ -38,7 +38,7 @@ function AppCard({
           </span>
         </div>
       )}
-      
+
       <div className="space-y-4">
         {/* Icon & Title */}
         <div className="flex items-start gap-4">
@@ -90,7 +90,7 @@ function AppCard({
             )}
           </div>
         )}
-        
+
         {isComingSoon && (
           <div className="rounded-xl bg-muted/50 p-4 text-center text-sm text-muted-foreground">
             We're working on bringing {name} integration soon!
@@ -102,13 +102,16 @@ function AppCard({
 }
 
 export function ConnectedApps() {
-  const { connections, connectTwitter, connectGitHub, disconnectAccount, isConnected, getConnection } = useConnections();
-  
+  const { connections, connectTwitter, connectGitHub, connectLinkedIn, disconnectAccount, isConnected, getConnection } = useConnections();
+
   const twitterConnection = getConnection("twitter");
   const isTwitterConnected = isConnected("twitter");
-  
+
   const githubConnection = getConnection("github");
   const isGitHubConnected = isConnected("github");
+
+  const linkedinConnection = getConnection("linkedin");
+  const isLinkedinConnected = isConnected("linkedin");
 
   const handleConnectTwitter = () => {
     connectTwitter.mutate();
@@ -127,6 +130,16 @@ export function ConnectedApps() {
   const handleDisconnectGitHub = () => {
     if (confirm("Are you sure you want to disconnect your GitHub account?")) {
       disconnectAccount.mutate("github");
+    }
+  };
+
+  const handleConnectLinkedIn = () => {
+    connectLinkedIn.mutate();
+  };
+
+  const handleDisconnectLinkedIn = () => {
+    if (confirm("Are you sure you want to disconnect your LinkedIn account?")) {
+      disconnectAccount.mutate("linkedin");
     }
   };
 
@@ -163,8 +176,11 @@ export function ConnectedApps() {
           name="LinkedIn"
           icon={<Linkedin className="h-7 w-7 text-primary" />}
           description="Share professional content and grow your LinkedIn network"
-          isConnected={false}
-          isComingSoon={true}
+          isConnected={isLinkedinConnected}
+          username={linkedinConnection?.platform_username}
+          onConnect={handleConnectLinkedIn}
+          onDisconnect={handleDisconnectLinkedIn}
+          isLoading={connectLinkedIn.isPending || disconnectAccount.isPending}
         />
 
         {/* Reddit */}
