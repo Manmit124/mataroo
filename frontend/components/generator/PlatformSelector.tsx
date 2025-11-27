@@ -36,7 +36,7 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
       name: "LinkedIn",
       icon: Linkedin,
       color: "text-blue-700",
-      available: false, // Phase 2
+      available: isConnected("linkedin"),
     },
     {
       id: "reddit",
@@ -64,8 +64,8 @@ export function PlatformSelector({ selected, onSelect }: PlatformSelectorProps) 
               isSelected
                 ? "bg-primary text-primary-foreground shadow-lg scale-105"
                 : isDisabled
-                ? "text-muted-foreground cursor-not-allowed opacity-50"
-                : "text-foreground hover:bg-background/80",
+                  ? "text-muted-foreground cursor-not-allowed opacity-50"
+                  : "text-foreground hover:bg-background/80",
               !isDisabled && "cursor-pointer"
             )}
           >
