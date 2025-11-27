@@ -55,8 +55,8 @@ export default function PricingPage() {
       // Open Razorpay checkout
       const options = {
         key: order.key_id,
-        amount: order.amount, // Amount in paise
-        currency: order.currency || "INR",
+        amount: order.amount, // Amount in smallest unit (cents for USD, paise for INR)
+        currency: order.currency || "USD",
         name: "Mataroo",
         description: "Pro Subscription - Monthly",
         order_id: order.id,

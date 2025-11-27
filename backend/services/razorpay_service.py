@@ -34,21 +34,26 @@ class RazorpayService:
             # Ignore if set_app_details is not available
             print(f"Note: set_app_details not available: {e}")
     
-    def create_order(self, amount: int, currency: str = "INR", user_id: Optional[str] = None) -> Dict:
+    def create_order(self, amount: int, currency: str = "USD", user_id: Optional[str] = None) -> Dict:
         """
         Create a Razorpay order for Pro subscription.
         
         Args:
-            amount: Amount in rupees (will be converted to paise)
-            currency: Currency code (default: INR)
+            amount: Amount in dollars (will be converted to cents for USD, or rupees to paise for INR)
+            currency: Currency code (default: USD)
             user_id: User ID for receipt tracking
             
         Returns:
             Order object with order_id
         """
         try:
-            # Convert rupees to paise (₹5 = 500 paise)
-            amount_in_paise = amount * 100
+            # Convert to smallest currency unit
+            # For USD: dollars to cents ($5 = 500 cents)
+            # For INR: rupees to paise (₹5 = 500 paise)
+            if currency == "USD":
+                amount_in_smallest_unit = amount * 100  # Convert dollars to cents
+            else:
+                amount_in_smallest_unit = amount * 100  # Convert rupees to paise (INR)
             
             # Generate short receipt ID (max 40 chars for Razorpay)
             # Use hash of user_id to keep it short but unique
@@ -61,7 +66,7 @@ class RazorpayService:
                 receipt = f"pro_{os.urandom(8).hex()}"
             
             data = {
-                "amount": amount_in_paise,
+                "amount": amount_in_smallest_unit,
                 "currency": currency,
                 "receipt": receipt,  # Max 40 characters
                 "notes": {

@@ -1954,9 +1954,9 @@ async def create_payment_order(authorization: Optional[str] = Header(None)):
         
         print(f"\n💳 User {user_id} - Creating payment order for Pro subscription...")
         
-        # Create Razorpay order (₹5 = 500 paise)
+        # Create Razorpay order ($5 = 500 cents)
         razorpay_service = get_razorpay_service()
-        order = razorpay_service.create_order(amount=5, currency="INR", user_id=user_id)
+        order = razorpay_service.create_order(amount=5, currency="USD", user_id=user_id)
         
         print(f"✅ Created Razorpay order: {order.get('id')}")
         
@@ -1964,7 +1964,7 @@ async def create_payment_order(authorization: Optional[str] = Header(None)):
             "success": True,
             "order": {
                 "id": order.get("id"),
-                "amount": order.get("amount"),  # Amount in paise
+                "amount": order.get("amount"),  # Amount in smallest unit (cents for USD, paise for INR)
                 "currency": order.get("currency"),
                 "key_id": razorpay_service.key_id  # For frontend checkout
             }

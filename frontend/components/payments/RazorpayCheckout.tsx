@@ -12,8 +12,9 @@ declare global {
 
 interface RazorpayCheckoutProps {
   orderId: string;
-  amount: number; // Amount in paise
+  amount: number; // Amount in smallest unit (cents for USD, paise for INR)
   keyId: string;
+  currency?: string; // Currency code (USD or INR)
   onSuccess: (paymentId: string, orderId: string, signature: string) => void;
   onError: (error: string) => void;
 }
@@ -22,6 +23,7 @@ export function RazorpayCheckout({
   orderId,
   amount,
   keyId,
+  currency = "USD",
   onSuccess,
   onError
 }: RazorpayCheckoutProps) {
@@ -48,8 +50,8 @@ export function RazorpayCheckout({
 
     const options = {
       key: keyId,
-      amount: amount, // Amount in paise
-      currency: "INR",
+      amount: amount, // Amount in smallest unit (cents for USD, paise for INR)
+      currency: currency,
       name: "Mataroo",
       description: "Pro Subscription - Monthly",
       order_id: orderId,
